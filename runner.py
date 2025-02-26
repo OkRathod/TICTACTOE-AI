@@ -1,145 +1,48 @@
-import pygame
-import sys
-import time
-
+from flask import Flask, render_template, request, jsonify
 import tictactoe as ttt
 
-pygame.init()
-size = width, height = 600, 400
+app = Flask(__name__)
 
-# Colors
-black = (0, 0, 0)
-white = (255, 255, 255)
+# Initialize game state
+game_state = {
+    "user": None,
+    "board": ttt.initial_state(),
+    "ai_turn": False
+}
 
-screen = pygame.display.set_mode(size)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Load fonts
-mediumFont = pygame.font.Font(pygame.font.match_font("sans"), 28)
-largeFont = pygame.font.Font(pygame.font.match_font("sans"), 40)
-moveFont = pygame.font.Font(pygame.font.match_font("sans"), 60)
+@app.route('/choose', methods=['POST'])
+def choose():
+    data = request.json
+    game_state["user"] = data.get("player")
+    return jsonify({"message": "Player chosen", "user": game_state["user"]})
 
-user = None
-board = ttt.initial_state()
-ai_turn = False
+@app.route('/move', methods=['POST'])
+def move():
+    data = request.json
+    row, col = data.get("row"), data.get("col")
+    if game_state["board"][row][col] == ttt.EMPTY:
+        game_state["board"] = ttt.result(game_state["board"], (row, col))
+        return jsonify({"board": game_state["board"], "message": "Move made"})
+    return jsonify({"message": "Invalid move"}), 400
 
-while True:
+@app.route('/ai_move', methods=['POST'])
+def ai_move():
+    if game_state["user"] and not ttt.terminal(game_state["board"]):
+        move = ttt.minimax(game_state["board"])
+        game_state["board"] = ttt.result(game_state["board"], move)
+        return jsonify({"board": game_state["board"], "message": "AI move made"})
+    return jsonify({"message": "Game over or invalid request"}), 400
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+@app.route('/restart', methods=['POST'])
+def restart():
+    game_state["user"] = None
+    game_state["board"] = ttt.initial_state()
+    game_state["ai_turn"] = False
+    return jsonify({"message": "Game restarted"})
 
-    screen.fill(black)
-
-    # Let user choose a player.
-    if user is None:
-
-        # Draw title
-        title = largeFont.render("Play Tic-Tac-Toe", True, white)
-        titleRect = title.get_rect()
-        titleRect.center = ((width / 2), 50)
-        screen.blit(title, titleRect)
-
-        # Draw buttons
-        playXButton = pygame.Rect((width / 8), (height / 2), width / 4, 50)
-        playX = mediumFont.render("Play as X", True, black)
-        playXRect = playX.get_rect()
-        playXRect.center = playXButton.center
-        pygame.draw.rect(screen, white, playXButton)
-        screen.blit(playX, playXRect)
-
-        playOButton = pygame.Rect(5 * (width / 8), (height / 2), width / 4, 50)
-        playO = mediumFont.render("Play as O", True, black)
-        playORect = playO.get_rect()
-        playORect.center = playOButton.center
-        pygame.draw.rect(screen, white, playOButton)
-        screen.blit(playO, playORect)
-
-        # Check if button is clicked
-        if pygame.mouse.get_pressed()[0]:
-            mouse = pygame.mouse.get_pos()
-            if playXButton.collidepoint(mouse):
-                time.sleep(0.2)
-                user = ttt.X
-            elif playOButton.collidepoint(mouse):
-                time.sleep(0.2)
-                user = ttt.O
-
-    else:
-
-        # Draw game board
-        tile_size = 80
-        tile_origin = (width / 2 - (1.5 * tile_size),
-                       height / 2 - (1.5 * tile_size))
-        tiles = []
-        for i in range(3):
-            row = []
-            for j in range(3):
-                rect = pygame.Rect(
-                    tile_origin[0] + j * tile_size,
-                    tile_origin[1] + i * tile_size,
-                    tile_size, tile_size
-                )
-                pygame.draw.rect(screen, white, rect, 3)
-
-                if board[i][j] != ttt.EMPTY:
-                    move = moveFont.render(board[i][j], True, white)
-                    moveRect = move.get_rect()
-                    moveRect.center = rect.center
-                    screen.blit(move, moveRect)
-                row.append(rect)
-            tiles.append(row)
-
-        game_over = ttt.terminal(board)
-        player = ttt.player(board)
-
-        # Show title
-        if game_over:
-            winner = ttt.winner(board)
-            if winner is None:
-                title = "Game Over: Tie."
-            else:
-                title = f"Game Over: {winner} wins."
-        elif user == player:
-            title = f"Play as {user}"
-        else:
-            title = "Computer thinking..."
-        title = largeFont.render(title, True, white)
-        titleRect = title.get_rect()
-        titleRect.center = ((width / 2), 30)
-        screen.blit(title, titleRect)
-
-        # Check for AI move
-        if user != player and not game_over:
-            if ai_turn:
-                time.sleep(0.5)
-                move = ttt.minimax(board)
-                board = ttt.result(board, move)
-                ai_turn = False
-            else:
-                ai_turn = True
-
-        # Check for a user move
-        if pygame.mouse.get_pressed()[0] and user == player and not game_over:
-            mouse = pygame.mouse.get_pos()
-            for i in range(3):
-                for j in range(3):
-                    if board[i][j] == ttt.EMPTY and tiles[i][j].collidepoint(mouse):
-                        board = ttt.result(board, (i, j))
-
-        if game_over:
-            againButton = pygame.Rect(width / 3, height - 65, width / 3, 50)
-            again = mediumFont.render("Play Again", True, black)
-            againRect = again.get_rect()
-            againRect.center = againButton.center
-            pygame.draw.rect(screen, white, againButton)
-            screen.blit(again, againRect)
-            if pygame.mouse.get_pressed()[0]:
-                mouse = pygame.mouse.get_pos()
-                if againButton.collidepoint(mouse):
-                    time.sleep(0.2)
-                    user = None
-                    board = ttt.initial_state()
-                    ai_turn = False
-
-    pygame.display.flip()
+if __name__ == '__main__':
+    app.run(debug=True)
