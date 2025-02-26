@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 5px;
+            justify-content: center;
+            margin: 20px auto;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            font-size: 2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid black;
+            cursor: pointer;
+        }
+        .cell.taken {
+            cursor: not-allowed;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tic-Tac-Toe</h1>
+    <div>
+        <button onclick="choosePlayer('X')">Play as X</button>
+        <button onclick="choosePlayer('O')">Play as O</button>
+    </div>
+    <h2 id="status">Choose your player</h2>
+    <div class="board" id="board"></div>
+    <button onclick="restartGame()">Restart Game</button>
+
+    <script>
+        let user = null;
+        let board = [["", "", ""], ["", "", ""], ["", "", ""]];
+
+        function renderBoard() {
+            const boardDiv = document.getElementById("board");
+            boardDiv.innerHTML = "";
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const cell = document.createElement("div");
+                    cell.className = "cell";
+                    if (board[i][j]) {
+                        cell.textContent = board[i][j];
+                        cell.classList.add("taken");
+                    } else {
+                        cell.onclick = () => makeMove(i, j);
+                    }
+                    boardDiv.appendChild(cell);
+                }
+            }
+        }
+
+        function choosePlayer(player) {
+            fetch("/choose", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ player })
+            })
+            .then(res => res.json())
+            .then(data => {
+                user = data.user;
+                document.getElementById("status").textContent = `You are playing as ${user}`;
+                renderBoard();
+            });
+        }
+
+        function makeMove(row, col) {
+            fetch("/move", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ row, col })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.board) {
+                    board = data.board;
+                    renderBoard();
+                    aiMove();
+                }
+            });
+        }
+
+        function aiMove() {
+            fetch("/ai_move", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.board) {
+                    board = data.board;
+                    renderBoard();
+                }
+            });
+        }
+
+        function restartGame() {
+            fetch("/restart", { method: "POST" })
+            .then(res => res.json())
+            .then(() => {
+                user = null;
+                board = [["", "", ""], ["", "", ""], ["", "", ""]];
+                document.getElementById("status").textContent = "Choose your player";
+                renderBoard();
+            });
+        }
+
+        renderBoard();
+    </script>
+</body>
+</html>
